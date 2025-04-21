@@ -1,10 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-// import { fillBillSchema } from "./types";
+import { fillBillSchema } from "./types";
 import { readFile } from "./services/file.service";
 import { getConfig, saveConfig } from "./services/configuration.service";
- 
+import { SatFormService } from "./services/sat-form.service";
+import { ErrorService } from "./services/error.service";
+import { ConfigService } from "./services/config.service";
+import { ValidationService } from "./services/validation.service";
+import { BrowserService } from "./services/browser.service";
+import { SatBillGenerator } from "./process/sat-fill-bill-with-efirma";
+import { uint8ArrayToBase64 } from "./services/image.service";
+
 
 
 // Create an MCP server
@@ -25,18 +32,18 @@ server.tool("config-bill-settings", {
     async (params) => {
         const currentConfig = await getConfig();
         const newConfig = { ...currentConfig };
-        
+
         // Update only provided values
         if (params.privateKey) newConfig.privateKey = params.privateKey;
         if (params.certificate) newConfig.certificate = params.certificate;
         if (params.password) newConfig.password = params.password;
         if (params.rfc) newConfig.rfc = params.rfc;
-        
+
         await saveConfig(newConfig);
-        const {rfc} = await getConfig();
+        const { rfc } = await getConfig();
         // Validate the inputs
-       
-        
+
+
         return {
             content: [
                 {
@@ -49,41 +56,56 @@ server.tool("config-bill-settings", {
 );
 
 
-/*
+
 // Add an addition tool
 server.tool("generate-bill-sat", {
-  
+
     bill: fillBillSchema.describe("The bill data")
 },
     async ({
-        //bill
+        bill
     }) => {
-      
-        const {certificate,privateKey} = await getConfig();
-          // Validate the inputs
-          const fileCertificate = await readFile(certificate);
-          const filePrivateKey = await readFile(privateKey);
-          
-          if (!fileCertificate) {
-              throw new Error("Certificate file not found");
-          }
-          if (!filePrivateKey) {
-              throw new Error("Private key file not found");
-          }
 
-    
+        const { certificate, privateKey, password } = await getConfig();
+        // Validate the inputs
+        // const fileCertificateBuffer = await readFile(certificate);
+        // const filePrivateKeyBuffer = await readFile(privateKey);
+ 
+
+        if (!certificate) {
+            throw new Error("Certificate file not found");
+        }
+        if (!privateKey) {
+            throw new Error("Private key file not found");
+        }
+        if (!password) {
+            throw new Error("Password not found");
+        }
+
+
+        const satBillGenerator = new SatBillGenerator();
+        const screenshot = await satBillGenerator.generateBillWithEfirma(
+            certificate,
+            privateKey,
+            password,
+            bill);
+
+        // Convert screenshot buffer to base64 string for the image
+        const base64Image = uint8ArrayToBase64(screenshot);
+
         // Return the result wrapped in a content array
         return {
             content: [
                 {
-                    type: "text",
-                    text: `Congratulation! The bill was generated successfully!`
+                    type: "image",
+                    data: base64Image,
+                    mimeType: "image/png",
                 }
             ]
         };
     }
 );
-*/
+
 
 
 // Start receiving messages on stdin and sending messages on stdout

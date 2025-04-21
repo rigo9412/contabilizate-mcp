@@ -1,4 +1,4 @@
-import { ElementHandle, Page } from 'puppeteer-core';
+import { ElementHandle, Page } from 'puppeteer';
 import { ConfigService } from './config.service';
 import { ErrorService } from './error.service';
 

@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from 'puppeteer-core';
+import puppeteer, { Browser, Page } from 'puppeteer';
 
 export class BrowserService {
     private static instance: BrowserService;
@@ -19,12 +19,22 @@ export class BrowserService {
         }
 
         try {
-            const res = await fetch("http://localhost:9222/json/version");
-            const data = await res.json();
-            this.browser = await puppeteer.connect({ 
-                browserWSEndpoint: data.webSocketDebuggerUrl,
-                defaultViewport: null,
+             
+            this.browser = await puppeteer.launch({
+                headless: false,
+                // executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
+                // args: [
+                //     '--no-sandbox',
+                //     '--disable-setuid-sandbox',
+                //     '--disable-dev-shm-usage',
+                //     '--disable-gpu',
+                //     '--disable-software-rasterizer',
+                //     '--disable-extensions',
+                //     '--disable-web-security',
+                //     '--allow-file-access-from-files'
+                // ]
             });
+
             return this.browser;
         } catch (error) {
             throw new Error(`Failed to connect to browser: ${error}`);

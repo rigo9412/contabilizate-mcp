@@ -6,7 +6,6 @@ import { ErrorService } from '../services/error.service';
 import { ConfigService } from '../services/config.service';
 import { ValidationService } from '../services/validation.service';
 import { bill } from '../types';
- 
 
 
 
@@ -31,17 +30,17 @@ export class SatBillGenerator {
     }
 
     async generateBillWithEfirma(
-        certificateFile: File,
-        privateKeyFile: File, 
+        certificateFile: string,
+        privateKeyFile: string,
         password: string,
         billData: bill
     ) {
         try {
-            await this.validateAllInputs(certificateFile, privateKeyFile, password, billData);
-            
-            const tempFilePathPrivateKey = await this.createTempFile(privateKeyFile);
-            const tempFilePathCertificate = await this.createTempFile(certificateFile);
-            this.tempFiles.push(tempFilePathPrivateKey, tempFilePathCertificate);
+            //await this.validateAllInputs(certificateFile, privateKeyFile, password, billData);
+
+            // const tempFilePathPrivateKey = await this.createTempFile(privateKeyFile);
+            // const tempFilePathCertificate = await this.createTempFile(certificateFile);
+            this.tempFiles.push(certificateFile, privateKeyFile);
 
             const browserService = BrowserService.getInstance();
             const page = await browserService.createPage();
@@ -49,8 +48,11 @@ export class SatBillGenerator {
 
             await this.errorService.handleError(
                 new Error("Error en el proceso de inicio de sesión"),
-                () => this.signIn(tempFilePathCertificate, tempFilePathPrivateKey, password)
+                () => this.signIn(certificateFile, privateKeyFile, password)
             );
+
+            // Return screenshot as buffer directly without saving to disk
+            return await page.screenshot({ fullPage: true });
 
             // await this.errorService.handleError(
             //     new Error("Error en el llenado del formulario"),
@@ -63,7 +65,7 @@ export class SatBillGenerator {
             //);
         } catch (error) {
             this.errorService.logError(error as Error, { billData });
-            
+
             if (error instanceof ValidationError) {
                 throw error;
             } else if (error instanceof Error) {
@@ -108,21 +110,21 @@ export class SatBillGenerator {
     }
 
     private async signIn(
-        certificatePath: string, 
-        privateKeyPath: string, 
+        certificatePath: string,
+        privateKeyPath: string,
         password: string
     ) {
         if (!this.formService) throw new Error('FormService no inicializado');
         const config = this.configService.getConfig();
 
-        await this.formService.page.goto(config.urls.portalFactura, 
+        await this.formService.page.goto(config.urls.portalFactura,
             { waitUntil: 'domcontentloaded' });
-        
+
         await this.formService.clickElement(config.selectors.loginButton);
         await this.formService.setFileInput(config.selectors.certificateInput, certificatePath);
         await this.formService.setFileInput(config.selectors.privateKeyInput, privateKeyPath);
         await this.formService.setTextInput(config.selectors.passwordInput, password);
-        await this.formService.clickElement(config.selectors.submitButton);
+        //await this.formService.clickElement(config.selectors.submitButton);
     }
 
     private async fillBillForm(billData: bill) {
@@ -134,7 +136,7 @@ export class SatBillGenerator {
 
         // Llenar datos del receptor
         await this.fillRecipientData(billData);
-        
+
         // Agregar concepto
         await this.addBillConcept(billData);
 
@@ -160,18 +162,18 @@ export class SatBillGenerator {
         await this.formService.setAutocompleteInput("concepto_descripcion", billData.concepto[0].descripcion);
         await this.formService.setAutocompleteInput("concepto_productoServicio", billData.concepto[0].producto);
         await this.formService.setAutocompleteInput("concepto_unidadDeMedida", billData.concepto[0].unidad);
-        
+
         await this.formService.setTextInput("concepto_cantidad", billData.concepto[0].cantidad.toString());
         await this.formService.setTextInput("concepto_valorUnitario", billData.concepto[0].valor.toString());
         await this.formService.setTextInput("concepto_noIdentificacion", billData.concepto[0].id.toString());
-        
+
         await this.formService.setSelectInput("concepto_impuesto", "02");
         await this.formService.setCheckboxInput("concepto_no_impuesto");
-        
+
         await this.formService.setTextInput("concepto_cobradoIVA", billData.concepto[0].iva.toString());
         await this.formService.setTextInput("concepto_retencionIVA", billData.concepto[0].retIva.toString());
         await this.formService.setTextInput("concepto_retencionISR", billData.concepto[0].retIsr.toString());
-        
+
         await this.formService.clickElement(".btnAddItem[entidad='1350001']");
     }
 
@@ -190,7 +192,7 @@ export class SatBillGenerator {
         await this.formService.setFileInput(config.selectors.privateKeyInput, privateKeyPath);
         await this.formService.setFileInput(config.selectors.certificateInput, certificatePath);
         await this.formService.clickElement(config.selectors.validateOscpButton);
-        
+
         await this.formService.waitForPageLoad();
         await this.formService.clickElement(config.selectors.signButton);
     }
@@ -208,17 +210,17 @@ export class SatBillGenerator {
         }
     }
 
-    private async createTempFile(file: File): Promise<string> {
-        try {
-            const tempFilePath = path.join(__dirname, file.name);
-            const content = await file.arrayBuffer();
-            writeFileSync(tempFilePath, Buffer.from(content));
-            return tempFilePath;
-        } catch (error) {
-            this.errorService.logError(error as Error, { fileName: file.name });
-            throw error;
-        }
-    }
+    // private async createTempFile(file: File): Promise<string> {
+    //     try {
+    //         const tempFilePath = path.join(__dirname, file.name);
+    //         const content = await file.arrayBuffer();
+    //         writeFileSync(tempFilePath, Buffer.from(content));
+    //         return tempFilePath;
+    //     } catch (error) {
+    //         this.errorService.logError(error as Error, { fileName: file.name });
+    //         throw error;
+    //     }
+    // }
 
     private cleanupTempFiles() {
         for (const file of this.tempFiles) {
